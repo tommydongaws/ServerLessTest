@@ -1,0 +1,132 @@
+service: motorvate-services
+provider:
+  name: aws
+  runtime: nodejs12.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'local'}
+  versionFunctions: false
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - apiGateway:GET
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:*"
+
+resources:
+  Resources:
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        # Generate a name based on the stage
+        UserPoolName: ${self:provider.stage}-user-pool
+        MfaConfiguration: "OFF"
+        # Set email as an alias
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        # Generate an app client name based on the stage
+        ClientName: ${self:provider.stage}-user-pool-client
+        UserPoolId:
+          Ref: CognitoUserPool
+        ExplicitAuthFlows:
+          - ADMIN_NO_SRP_AUTH
+        GenerateSecret: false
+
+    CognitoIdentityPool:
+      Type: "AWS::Cognito::IdentityPool"
+      Properties:
+        IdentityPoolName: ${self:provider.stage}-identity-pool
+        AllowUnauthenticatedIdentities: true
+        CognitoIdentityProviders:
+          - ClientId: !Ref CognitoUserPoolClient
+            ProviderName: !GetAtt CognitoUserPool.ProviderName
+
+    ProxyApi:
+      Type: AWS::ApiGateway::RestApi
+      Properties:
+        Name: api gateway proxy
+
+    ApiGatewayAuthorizer: 
+      Type: AWS::ApiGateway::Authorizer
+      Properties: 
+        Name: CognitoAuthorizer
+        Type: COGNITO_USER_POOLS
+        IdentitySource: method.request.header.Authorization
+        RestApiId: { "Ref": "ProxyApi" }
+        ProviderARNs: 
+          - Fn::GetAtt:
+              - CognitoUserPool
+              - Arn
+
+    TokensTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        # Generate a name based on the stage
+        TableName: tokens-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: key
+            AttributeType: S
+        KeySchema:
+          - AttributeName: key
+            KeyType: HASH
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
+        TimeToLiveSpecification:
+          AttributeName: timestamp
+          Enabled: true
+        # Set the capacity to auto-scale
+        BillingMode: PAY_PER_REQUEST
+
+  Outputs:
+    UserPoolArn:
+      Value:
+        Fn::GetAtt: CognitoUserPool.Arn
+      Export:
+        Name: ExtCognitoUserPool-${self:provider.stage}
+
+    UserPoolId:
+      Value:
+        Ref: CognitoUserPool
+      Export:
+        Name: ExtCognitoUserPoolId-${self:provider.stage}
+
+    UserPoolClientId:
+      Value:
+        Ref: CognitoUserPoolClient
+      Export:
+        Name: ExtCognitoUserPoolClientId-${self:provider.stage}
+    
+    IdentityPoolId:
+      Value:
+        Ref: CognitoIdentityPool
+
+    ApiGatewayAuthorizerId:
+      Value:
+        Ref: ApiGatewayAuthorizer
+      Export:
+        Name: ExtApiGatewayAuthorizer-${self:provider.stage}
+
+    TokenTableArn:
+      Value:
+        Fn::GetAtt: TokensTable.Arn
+      Export:
+        Name: ExttokensArn-${self:provider.stage}
+    TokenTableStreamArn:
+      Value:
+        Fn::GetAtt: TokensTable.StreamArn
+      Export:
+        Name: ExttokensStreamArn-${self:provider.stage}
+
+plugins:
+  - serverless-offline
+  - serverless-dynamodb-local
+  - serverless-prune-plugin
+
+custom:
+  prune:
+    automatic: true
+    number: 1
