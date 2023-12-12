@@ -120,12 +120,6 @@ resources:
         Fn::GetAtt: TokensTable.StreamArn
       Export:
         Name: ExttokensStreamArn-${self:provider.stage}
-
-plugins:
-  - serverless-offline
-  - serverless-dynamodb-local
-  - serverless-prune-plugin
-
 custom:
   prune:
     automatic: true
