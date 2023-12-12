@@ -108,7 +108,7 @@ resources:
       Value:
         Ref: ApiGatewayAuthorizer
       Export:
-        Name: ExtApiGatewayAuthorizer-${self:provider.stage}
+        Name: ExtApiGatewayAuthorizer-${self:provider.stage}-${cf:a793}.output123
 
     TokenTableArn:
       Value:
