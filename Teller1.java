@@ -6,6 +6,7 @@ const opts = {
   timeout: 1500, //timeout for connection - optional, will default to 1500ms if undefined
   logpath: 'log.txt' //optional write openvpn console output to file, can be relative path or absolute
 };
+
 const auth = {
   user: 'tom',
   pass: 'tomthetester123',
